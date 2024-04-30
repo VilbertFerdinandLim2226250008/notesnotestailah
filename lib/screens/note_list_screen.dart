@@ -17,7 +17,7 @@ class _NoteListScreenState extends State<NoteListScreen> {
       appBar: AppBar(
         title: const Text('Notes'),
       ),
-      body: const Placeholder(),
+      body: const NoteList(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           showDialog(
@@ -27,8 +27,8 @@ class _NoteListScreenState extends State<NoteListScreen> {
                 content: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Add'),
-                    Padding(
+                    const Text('Add'),
+                    const Padding(
                       padding: const EdgeInsets.only(top: 10),
                       child: Text(
                         'Title: ',
@@ -92,47 +92,114 @@ class NoteList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-        stream: FirebaseFirestore.instance.collection('notes').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Text('Error: ${snapshot.error}');
-          }
-          switch (snapshot.connectionState) {
-            case ConnectionState.waiting:
-              return Center(
-                child: CircularProgressIndicator(),
-              );
-            default:
-              return ListView(
-                padding: const EdgeInsets.only(bottom: 80),
-                children: snapshot.data!.docs.map((document) {
-                  return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 3, horizontal: 10),
-                    child: Card(
-                      child: ListTile(
-                        onTap: () {},
-                        title: Text(document['title']),
-                        subtitle: Text(document['description']),
-                        trailing: InkWell(
-                          onTap: () {
-                            FirebaseFirestore.instance
-                                .collection('notes')
-                                .doc(document.id)
-                                .delete();
+      stream: FirebaseFirestore.instance.collection('notes').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        }
+        switch (snapshot.connectionState) {
+          case ConnectionState.waiting:
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          default:
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 80),
+              children: snapshot.data!.docs.map((document) {
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 3, horizontal: 10),
+                  child: Card(
+                    child: ListTile(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            final TextEditingController titleController =
+                                TextEditingController();
+                            final TextEditingController descriptionController =
+                                TextEditingController();
+                            return AlertDialog(
+                              content: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Update'),
+                                  const Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Text(
+                                      'Title: ',
+                                      textAlign: TextAlign.start,
+                                    ),
+                                  ),
+                                  TextField(
+                                    controller: titleController,
+                                  ),
+                                  const Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Text(
+                                      'Description: ',
+                                      textAlign: TextAlign.start,
+                                    ),
+                                  ),
+                                  TextField(
+                                    controller: descriptionController,
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 10),
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                    child: const Text('Cancel'),
+                                  ),
+                                ),
+                                ElevatedButton(
+                                    onPressed: () {
+                                      Map<String, dynamic> updateNotes = {};
+                                      updateNotes['title'] =
+                                          titleController.text;
+                                      updateNotes['description'] =
+                                          descriptionController.text;
+
+                                      FirebaseFirestore.instance
+                                          .collection('notes')
+                                          .doc(document.id)
+                                          .update(updateNotes)
+                                          .whenComplete(() {
+                                        Navigator.of(context).pop();
+                                      });
+                                    },
+                                    child: const Text('Update'))
+                              ],
+                            );
                           },
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
-                            child: Icon(Icons.delete),
-                          ),
+                        );
+                      },
+                      title: Text(document['title']),
+                      subtitle: Text(document['description']),
+                      trailing: InkWell(
+                        onTap: () {
+                          FirebaseFirestore.instance
+                              .collection('notes')
+                              .doc(document.id)
+                              .delete();
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 10),
+                          child: Icon(Icons.delete),
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
-              );
-          }
-        });
+                  ),
+                );
+              }).toList(),
+            );
+        }
+      },
+    );
   }
 }
