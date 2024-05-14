@@ -1,10 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:notes/models/note.dart';
+import 'package:path/path.dart' as path;
 
 class NoteService {
   static final FirebaseFirestore _database = FirebaseFirestore.instance;
   static final CollectionReference _notesCollection =
       _database.collection('notes');
+  static final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  static Future<String?> uploadImage(File imageFile) async {
+    try {
+      String fileName = path.basename(imageFile.path);
+      Reference ref = _storage.ref().child('image/$fileName');
+      UploadTask uploadTask = ref.putFile(imageFile);
+      TaskSnapshot taskSnapshot = await uploadTask;
+      String downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      return null;
+    }
+  }
 
   static Future<void> addNote(Note note) async {
     Map<String, dynamic> newNote = {
@@ -20,6 +37,7 @@ class NoteService {
     Map<String, dynamic> updatedNote = {
       'title': note.title,
       'description': note.description,
+      'image_url': note.imageUrl,
       'created_at': note.createdAt,
       'updated_at': FieldValue.serverTimestamp(),
     };
