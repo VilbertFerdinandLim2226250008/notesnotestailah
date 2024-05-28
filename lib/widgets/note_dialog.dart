@@ -1,8 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:notes/models/note.dart';
+import 'package:notes/services/location_service.dart';
 import 'package:notes/services/note_service.dart';
 
 class NoteDialog extends StatefulWidget {
@@ -16,9 +16,10 @@ class NoteDialog extends StatefulWidget {
 
 class _NoteDialogState extends State<NoteDialog> {
   final TextEditingController _titleController = TextEditingController();
-
   final TextEditingController _descriptionController = TextEditingController();
-  File? _imageFile;
+  XFile? _imageFile;
+  Position? _currentPosition;
+  // String? _currentAddress;
 
   @override
   void initState() {
@@ -34,9 +35,18 @@ class _NoteDialogState extends State<NoteDialog> {
         await ImagePicker().pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       setState(() {
-        _imageFile = File(pickedFile.path);
+        _imageFile = pickedFile;
       });
     }
+  }
+
+  Future<void> _pickLocation() async {
+    final currentPosition = await LocationService.getCurrentPosition();
+    // final currentAddress = await LocationService.getAddressFromLatLng(_currentPosition!);
+    setState(() {
+      _currentPosition = currentPosition;
+      // _currentAddress = currentAddress;
+    });
   }
 
   @override
@@ -59,22 +69,31 @@ class _NoteDialogState extends State<NoteDialog> {
               'Description: ',
             ),
           ),
-            const Padding(
-            padding: EdgeInsets.only(top: 20),
-            child: Text(
-              'Image: ',
-            ),
-          ),
-          Expanded(child: _imageFile != null
-              ? Image.file(_imageFile!, fit: BoxFit.cover,)
-              : (widget.note?.imageUrl != null && 
-                  Uri.parse(widget.note!.imageUrl!).isAbsolute)
-              ? Image.network(widget.note!.imageUrl!, fit:BoxFit.cover,)
-              : Container();
-          TextButton(onPressed: _pickImage, child: const Text('Pick Image')),
           TextField(
             controller: _descriptionController,
           ),
+          const Padding(
+            padding: EdgeInsets.only(top: 20),
+            child: Text('Image: '),
+          ),
+          Expanded(
+              child: _imageFile != null
+                  ? Image.network(_imageFile!.path, fit: BoxFit.cover)
+                  : (widget.note?.imageUrl != null &&
+                          Uri.parse(widget.note!.imageUrl!).isAbsolute
+                      ? Image.network(widget.note!.imageUrl!, fit: BoxFit.cover)
+                      : Container())),
+          TextButton(
+            onPressed: _pickImage,
+            child: const Text('Pick Image'),
+          ),
+          TextButton(
+            onPressed: _pickLocation,
+            child: const Text('Get Current Location'),
+          ),
+          Text('LAT: ${_currentPosition?.latitude ?? ""}'),
+          Text('LNG: ${_currentPosition?.longitude ?? ""}'),
+          // Text('ADDRESS: ${_currentAddress ?? ""}'),
         ],
       ),
       actions: [
@@ -88,23 +107,29 @@ class _NoteDialogState extends State<NoteDialog> {
           ),
         ),
         ElevatedButton(
-          onPressed: () {
-            if (widget.note == null) {
-              NoteService.addNote(Note(
-                title: _titleController.text,
-                description: _descriptionController.text,
-                imageUrl: null,
-              )).whenComplete(() {
-                Navigator.of(context).pop();
-              });
+          onPressed: () async {
+            String? imageUrl;
+            if (_imageFile != null) {
+              imageUrl = await NoteService.uploadImage(_imageFile!);
             } else {
-              NoteService.updateNote(Note(
-                id: widget.note!.id,
-                title: _titleController.text,
-                description: _descriptionController.text,
-                createdAt: widget.note!.createdAt,
-                imageUrl: null,
-              )).whenComplete(() => Navigator.of(context).pop());
+              imageUrl = widget.note?.imageUrl;
+            }
+            Note note = Note(
+              id: widget.note?.id,
+              title: _titleController.text,
+              description: _descriptionController.text,
+              imageUrl: imageUrl,
+              latitude: _currentPosition?.latitude,
+              longitude: _currentPosition?.longitude,
+              createdAt: widget.note?.createdAt,
+            );
+
+            if (widget.note == null) {
+              NoteService.addNote(note)
+                  .whenComplete(() => Navigator.of(context).pop());
+            } else {
+              NoteService.updateNote(note)
+                  .whenComplete(() => Navigator.of(context).pop());
             }
           },
           child: Text(widget.note == null ? 'Add' : 'Update'),
